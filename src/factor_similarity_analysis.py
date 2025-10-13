@@ -155,7 +155,7 @@ class FactorSimilarityAnalyzer:
         
         if not text_files:
             print(f"No text files found in {input_folder}")
-            return
+            return pd.DataFrame()  # Return an empty DataFrame
         
         print(f"\nFound {len(text_files)} documents to process")
         print("=" * 60)
@@ -196,7 +196,7 @@ class FactorSimilarityAnalyzer:
             for factor_name in self.factors.keys():
                 print(f"  Computing {factor_name} score...", end=' ')
                 score = self.compute_document_factor_score(document_text, factor_name)
-                scores[f'{factor_name}_score'] = score
+                scores[f'{factor_name}_score'] = str(score)
                 print(f"{score:.6f}")
             
             results.append(scores)
@@ -215,7 +215,7 @@ class FactorSimilarityAnalyzer:
         print(f"\nSummary Statistics:")
         print(df.describe())
         
-        return df
+        return df if not df.empty else pd.DataFrame()  # Ensure a DataFrame is always returned
 
 
 def main():
