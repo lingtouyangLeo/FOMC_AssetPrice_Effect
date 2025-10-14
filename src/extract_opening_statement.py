@@ -3,6 +3,18 @@ Extract Opening Statement from FOMC PDF files and save as text files.
 
 This script processes PDF files containing FOMC minutes/transcripts,
 extracts only the opening statement section, and saves them as .txt files.
+
+Usage:
+    python src/extract_opening_statement.py
+
+Input:
+    - PDF files in: dataset/transcripts/*.pdf
+
+Output:
+    - Text files in: dataset/opening_statements/*.txt
+
+Dependencies:
+    pip install PyPDF2
 """
 
 import os

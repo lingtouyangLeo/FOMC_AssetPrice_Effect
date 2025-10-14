@@ -1,266 +1,329 @@
+# -*- coding: utf-8 -*-
 """
-Factor Similarity Analysis for FOMC Statements
+Semantic Similarity Analysis for FOMC Communications
+-----------------------------------------------------
+This script uses semantic similarity to analyze the hawkish/dovish stance of FOMC statements.
 
-This script implements the Factor Similarity method:
-1. Convert document sentences to vectors using FinBERT
-2. Convert factor key sentences to vectors using FinBERT
-3. Calculate average cosine similarity between document and factor vectors
-4. Compute scores for each document (date)
-5. Regress scores on changes in asset prices
+Methodology:
+1) Extract sentences from FOMC opening statements
+2) Encode sentences using FinBERT (financial domain pre-trained BERT model)
+3) Create semantic embeddings via mean pooling + L2 normalization
+4) Define hawkish and dovish anchor sentences as reference points
+5) Compute cosine similarity between document embeddings and anchor centroids
+6) Calculate hawk_score = similarity_to_hawk - similarity_to_dove
 
-Key factors:
-- Inflation will rise
-- Interest rates will rise
+The semantic similarity approach captures nuanced policy stances by:
+- Understanding context and meaning beyond keyword matching
+- Measuring semantic distance in high-dimensional embedding space
+- Using financial domain knowledge from FinBERT pre-training
+
+Usage:
+    python src/factor_similarity_analysis.py
+
+Input:
+    - Text files in: dataset/opening_statements/*.txt
+
+Output:
+    - CSV file: output/factor_similarity_scores.csv
+    - Columns: Date, filename, path, sim_to_hawk, sim_to_dove, hawk_score
+
+Interpretation:
+    - hawk_score > 0: More hawkish (tighter policy stance)
+    - hawk_score < 0: More dovish (looser policy stance)
+    - hawk_score ≈ 0: Neutral stance
+
+Dependencies:
+    pip install transformers torch pandas numpy
 """
 
-import os
 import re
-from pathlib import Path
-import pandas as pd
-import numpy as np
-from transformers import AutoTokenizer, AutoModel
-import torch
-from sklearn.metrics.pairwise import cosine_similarity
-from datetime import datetime
 import warnings
-warnings.filterwarnings('ignore')
+from pathlib import Path
+from datetime import datetime
+
+import numpy as np
+import pandas as pd
+import torch
+from transformers import AutoTokenizer, AutoModel
+
+warnings.filterwarnings("ignore")
 
 
 class FactorSimilarityAnalyzer:
     """
-    Analyzer for computing factor similarity scores from FOMC statements.
-    """
+    Semantic Similarity Analyzer for FOMC Policy Stance
     
-    def __init__(self, model_name='ProsusAI/finbert'):
+    Uses FinBERT embeddings and cosine similarity to measure the semantic distance
+    between FOMC statements and predefined hawkish/dovish anchor sentences.
+    
+    The semantic approach captures policy nuances beyond keyword counting by:
+    - Encoding contextual meaning in high-dimensional space
+    - Measuring angular distance (cosine similarity) between embeddings
+    - Leveraging financial domain knowledge from FinBERT
+    """
+
+    def __init__(self, model_name: str = "ProsusAI/finbert", device: str | None = None):
         """
-        Initialize the analyzer with FinBERT model.
+        Initialize the semantic similarity analyzer.
         
         Args:
-            model_name (str): Name of the FinBERT model to use
+            model_name: HuggingFace model name (default: ProsusAI/finbert)
+            device: Computing device (cuda/cpu), auto-detected if None
         """
-        print(f"Loading FinBERT model: {model_name}")
+        print(f"[Init] Loading model: {model_name}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModel.from_pretrained(model_name)
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.model.to(self.device)
-        self.model.eval()
-        print(f"Model loaded successfully on {self.device}")
-        
-        # Define factor key sentences
-        self.factors = {
-            'inflation': "Inflation will rise",
-            'interest_rates': "Interest rates will rise"
-        }
-    
-    def encode_sentence(self, sentence):
-        """
-        Convert a sentence to a vector using FinBERT.
-        
-        Args:
-            sentence (str): Input sentence
-            
-        Returns:
-            np.ndarray: Sentence embedding vector
-        """
-        # Tokenize and encode
-        inputs = self.tokenizer(sentence, return_tensors='pt', 
-                                padding=True, truncation=True, max_length=512)
-        inputs = {key: val.to(self.device) for key, val in inputs.items()}
-        
-        # Get embeddings
-        with torch.no_grad():
-            outputs = self.model(**inputs)
-            # Use [CLS] token embedding as sentence representation
-            embeddings = outputs.last_hidden_state[:, 0, :].cpu().numpy()
-        
-        return embeddings[0]
-    
-    def split_into_sentences(self, text):
-        """
-        Split text into sentences.
-        
-        Args:
-            text (str): Input text
-            
-        Returns:
-            list: List of sentences
-        """
-        # Simple sentence splitting by period, exclamation, or question mark
-        sentences = re.split(r'[.!?]+', text)
-        # Clean up and filter empty sentences
-        sentences = [s.strip() for s in sentences if s.strip()]
-        return sentences
-    
-    def compute_document_factor_score(self, document_text, factor_name):
-        """
-        Compute the average cosine similarity between document sentences and a factor.
-        
-        Args:
-            document_text (str): Full document text
-            factor_name (str): Name of the factor
-            
-        Returns:
-            float: Average cosine similarity score
-        """
-        # Split document into sentences
-        doc_sentences = self.split_into_sentences(document_text)
-        
-        if not doc_sentences:
-            return 0.0
-        
-        # Get factor key sentence
-        factor_sentence = self.factors[factor_name]
-        
-        # Encode factor sentence
-        factor_vector = self.encode_sentence(factor_sentence)
-        
-        # Encode all document sentences and compute cosine similarity
-        similarities = []
-        for sentence in doc_sentences:
-            if len(sentence.split()) < 3:  # Skip very short sentences
-                continue
-            
-            try:
-                sentence_vector = self.encode_sentence(sentence)
-                # Compute cosine similarity
-                sim = cosine_similarity(
-                    sentence_vector.reshape(1, -1),
-                    factor_vector.reshape(1, -1)
-                )[0, 0]
-                similarities.append(sim)
-            except Exception as e:
-                print(f"  Warning: Could not encode sentence: {sentence[:50]}... Error: {e}")
-                continue
-        
-        # Return average similarity
-        if similarities:
-            return np.mean(similarities)
-        else:
-            return 0.0
-    
-    def process_all_documents(self, input_folder, output_folder):
-        """
-        Process all documents and compute factor similarity scores.
-        
-        Args:
-            input_folder (str): Path to folder containing text files
-            output_folder (str): Path to save output CSV
-        """
-        input_path = Path(input_folder)
-        output_path = Path(output_folder)
-        output_path.mkdir(parents=True, exist_ok=True)
-        
-        # Get all text files
-        text_files = sorted(list(input_path.glob("*.txt")))
-        
-        if not text_files:
-            print(f"No text files found in {input_folder}")
-            return pd.DataFrame()  # Return an empty DataFrame
-        
-        print(f"\nFound {len(text_files)} documents to process")
-        print("=" * 60)
-        
-        results = []
-        
-        # Process each document
-        for i, text_file in enumerate(text_files, 1):
-            # Extract date from filename (e.g., FOMCpresconf20201105.txt -> 2020-11-05)
-            filename = text_file.stem
-            date_str = filename.replace('FOMCpresconf', '')
-            
-            try:
-                # Parse date: YYYYMMDD -> YYYY-MM-DD
-                date = datetime.strptime(date_str, '%Y%m%d').strftime('%Y-%m-%d')
-            except:
-                print(f"Warning: Could not parse date from {filename}, using filename")
-                date = date_str
-            
-            print(f"\n[{i}/{len(text_files)}] Processing: {text_file.name}")
-            print(f"  Date: {date}")
-            
-            # Read document
-            try:
-                with open(text_file, 'r', encoding='utf-8') as f:
-                    document_text = f.read()
-            except Exception as e:
-                print(f"  Error reading file: {e}")
-                continue
-            
-            if not document_text.strip():
-                print(f"  Warning: Empty document, skipping")
-                continue
-            
-            # Compute scores for each factor
-            scores = {'Date': date}
-            
-            for factor_name in self.factors.keys():
-                print(f"  Computing {factor_name} score...", end=' ')
-                score = self.compute_document_factor_score(document_text, factor_name)
-                scores[f'{factor_name}_score'] = str(score)
-                print(f"{score:.6f}")
-            
-            results.append(scores)
-        
-        # Create DataFrame
-        df = pd.DataFrame(results)
-        df = df.sort_values('Date')
-        
-        # Save to CSV
-        output_file = output_path / 'factor_similarity_scores.csv'
-        df.to_csv(output_file, index=False)
-        
-        print("\n" + "=" * 60)
-        print(f"✓ Processing complete!")
-        print(f"✓ Results saved to: {output_file}")
-        print(f"\nSummary Statistics:")
-        print(df.describe())
-        
-        return df if not df.empty else pd.DataFrame()  # Ensure a DataFrame is always returned
+        self.device = torch.device(device) if device else torch.device(
+            "cuda" if torch.cuda.is_available() else "cpu"
+        )
+        self.model.to(self.device).eval()
+        print(f"[Init] Using device: {self.device}")
 
+        # Semantic anchors: extreme hawkish and dovish reference points
+        # These serve as poles in the semantic space for measuring policy stance
+        self.factors = {
+            "hawk": [
+                "Inflation is dangerously high and spiraling out of control.",
+                "We must aggressively raise rates by 75 basis points or more.",
+                "Restrictive monetary policy is essential to crush inflation.",
+                "Interest rates need to stay high for an extended period.",
+                "The economy is overheating with excessive demand.",
+                "Inflation poses severe risks to economic stability.",
+                "We prioritize price stability over growth concerns.",
+                "Rate hikes must continue until inflation falls substantially.",
+            ],
+            "dove": [
+                "Inflation is declining rapidly toward our 2% target.",
+                "We must cut interest rates immediately to prevent recession.",
+                "Accommodative monetary policy is needed to support jobs.",
+                "Interest rates should be lowered to stimulate growth.",
+                "The economy is dangerously weak with rising unemployment.",
+                "Unemployment and weak growth are our primary concerns.",
+                "We prioritize maximum employment over inflation worries.",
+                "Rate cuts are necessary to support struggling businesses.",
+            ],
+        }
+
+        # Cache anchor embeddings and centroids in semantic space
+        self.factor_vecs = {k: self.embed_texts(v) for k, v in self.factors.items()}
+        self.factor_centroid = {
+            k: vecs.mean(axis=0, keepdims=True) for k, vecs in self.factor_vecs.items()
+        }  # [1, H], L2-normalized centroids represent semantic "average" of each stance
+
+    # ---------- Semantic Embedding Utilities ----------
+
+    @staticmethod
+    def _mean_pooling(model_output: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
+        """
+        Mean-pool token embeddings using the attention mask.
+        
+        This creates sentence-level embeddings from token-level representations,
+        weighted by the attention mask to ignore padding tokens.
+        
+        Args:
+            model_output: BERT model output with last_hidden_state
+            attention_mask: Binary mask indicating real vs padding tokens
+            
+        Returns:
+            Mean-pooled sentence embeddings [B, H]
+        """
+        token_embeddings = model_output.last_hidden_state  # [B, T, H]
+        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+        summed = (token_embeddings * input_mask_expanded).sum(dim=1)
+        counts = input_mask_expanded.sum(dim=1).clamp(min=1e-9)
+        return summed / counts  # [B, H]
+
+    def embed_texts(self, texts: list[str], batch_size: int = 16) -> np.ndarray:
+        """
+        Batch-embed texts into semantic vector space.
+        
+        Process:
+        1. Tokenize text into BERT input format
+        2. Pass through FinBERT to get contextualized token embeddings
+        3. Mean-pool tokens to create sentence-level embeddings
+        4. L2-normalize to unit length (enables cosine similarity via dot product)
+        
+        Args:
+            texts: List of text strings to embed
+            batch_size: Number of texts to process simultaneously
+            
+        Returns:
+            Numpy array of shape [N, H] with L2-normalized embeddings
+        """
+        all_vecs: list[torch.Tensor] = []
+        for i in range(0, len(texts), batch_size):
+            batch = texts[i : i + batch_size]
+            inputs = self.tokenizer(
+                batch, return_tensors="pt", padding=True, truncation=True, max_length=512
+            )
+            inputs = {k: v.to(self.device) for k, v in inputs.items()}
+            with torch.no_grad():
+                out = self.model(**inputs)
+                vecs = self._mean_pooling(out, inputs["attention_mask"])   # [B, H]
+                vecs = torch.nn.functional.normalize(vecs, p=2, dim=1)     # L2 normalize
+            all_vecs.append(vecs.cpu())
+        return torch.cat(all_vecs, dim=0).numpy()
+
+    def embed_sentence(self, sentence: str) -> np.ndarray:
+        """Convenience method to embed a single sentence into semantic space."""
+        return self.embed_texts([sentence])[0]
+
+    # ---------- Semantic Similarity Scoring ----------
+
+    @staticmethod
+    def split_sentences(text: str) -> list[str]:
+        """
+        Split text into sentences for semantic analysis.
+        
+        Filters sentences with >=5 tokens to reduce noise from fragments.
+        
+        Args:
+            text: Input document text
+            
+        Returns:
+            List of sentence strings
+        """
+        t = re.sub(r"\s+", " ", text).strip()
+        if not t:
+            return []
+        parts = re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", t)
+        sents = [s.strip() for s in parts if len(s.strip().split()) >= 5]
+        return sents
+
+    def score_document(self, text: str) -> dict:
+        """
+        Compute semantic similarity scores for a document.
+        
+        Process:
+        1. Split document into sentences
+        2. Embed each sentence into semantic space using FinBERT
+        3. Compute cosine similarity to hawkish and dovish centroids
+        4. Average similarities across all sentences
+        5. Calculate hawk_score as the difference (positive = hawkish, negative = dovish)
+        
+        Cosine similarity measures the angular distance between embeddings:
+        - 1.0 = identical semantic meaning
+        - 0.0 = orthogonal (unrelated)
+        - -1.0 = opposite meaning
+        
+        Args:
+            text: Input document text
+            
+        Returns:
+            Dictionary with keys:
+            - sim_to_hawk: Average cosine similarity to hawkish anchors
+            - sim_to_dove: Average cosine similarity to dovish anchors
+            - hawk_score: Difference (hawk - dove), indicating overall stance
+        """
+        sents = self.split_sentences(text)
+        if not sents:
+            return {"sim_to_hawk": 0.0, "sim_to_dove": 0.0, "hawk_score": 0.0}
+
+        doc_vecs = self.embed_texts(sents)                     # [N, H], normalized
+        hawk_cent = self.factor_centroid["hawk"]               # [1, H]
+        dove_cent = self.factor_centroid["dove"]               # [1, H]
+
+        # Cosine similarities via dot product (vectors already L2-normalized)
+        sim_hawk = float((doc_vecs @ hawk_cent.T).mean())
+        sim_dove = float((doc_vecs @ dove_cent.T).mean())
+        return {"sim_to_hawk": sim_hawk, "sim_to_dove": sim_dove, "hawk_score": sim_hawk - sim_dove}
+
+    # ---------- IO ----------
+
+    @staticmethod
+    def extract_date_from_stem(stem: str) -> str:
+        """
+        Extract YYYYMMDD from filename stem and convert to YYYY-MM-DD.
+        """
+        m = re.search(r"(\d{8})", stem)
+        if not m:
+            return stem
+        ymd = m.group(1)
+        try:
+            return datetime.strptime(ymd, "%Y%m%d").strftime("%Y-%m-%d")
+        except Exception:
+            return stem
+
+    def process_folder(self, docs_dir: Path, out_csv: Path) -> pd.DataFrame:
+        """
+        Compute scores for all .txt files in docs_dir and save CSV.
+        """
+        files = sorted(docs_dir.glob("*.txt"))
+        if not files:
+            print(f"[Warn] No .txt files in: {docs_dir}")
+            return pd.DataFrame()
+
+        rows: list[dict] = []
+        print(f"[Run] Found {len(files)} transcripts.")
+        for i, f in enumerate(files, 1):
+            date_iso = self.extract_date_from_stem(f.stem)
+            print(f"  [{i}/{len(files)}] {f.name} -> Date={date_iso}")
+            try:
+                txt = Path(f).read_text(encoding="utf-8", errors="ignore")
+            except Exception as e:
+                print(f"    [Error] Read failed: {e}")
+                continue
+            if not txt.strip():
+                print("    [Warn] Empty file. Skipped.")
+                continue
+
+            sc = self.score_document(txt)
+            rows.append({"Date": date_iso, "filename": f.name, "path": str(f), **sc})
+
+        df = pd.DataFrame(rows).sort_values("Date")
+        if not df.empty:
+            out_csv.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(out_csv, index=False)
+            print(f"[OK] Scores saved -> {out_csv}")
+            print("[Summary]\n", df.describe())
+        return df
+
+
+# ---------- Placeholder for regression section ----------
+
+def run_hac_regressions(scores_csv: Path, market_csv: Path, y_cols: list[str]) -> None:
+    """
+    Placeholder for future regression implementation.
+    This function intentionally left empty.
+    """
+    print("\n[Info] Regression section is not implemented in this version.\n")
+    pass
+
+
+# ---------- Main function ----------
 
 def main():
-    """
-    Main function to run the factor similarity analysis.
-    """
-    # Define paths
-    script_dir = Path(__file__).parent.parent
-    input_folder = script_dir / "dataset" / "opening_statements"
-    output_folder = script_dir / "output"
-    
+    # ---------------- CONFIG ----------------
+    DOCS_DIR = Path("dataset/opening_statements")  # folder with .txt transcripts
+    OUT_DIR = Path("output")
+    SCORES_CSV = OUT_DIR / "factor_similarity_scores.csv"
+
+    MODEL_NAME = "ProsusAI/finbert"  # FinBERT encoder
+    DEVICE = None                    # None (auto), or "cpu"/"cuda"
+
+    # Future regression config (currently unused)
+    MARKET_CSV = Path("data/market.csv")
+    Y_COLS = ["DGS2_Change", "DGS1_Change", "DGS10_Change", "DXY_Change"]
+    RUN_REG = False  # regression disabled
+    # ----------------------------------------
+
     print("=" * 60)
-    print("FOMC Factor Similarity Analysis")
+    print("FOMC Factor Similarity (FinBERT) - No Regression Version")
     print("=" * 60)
-    print(f"Input folder:  {input_folder}")
-    print(f"Output folder: {output_folder}")
-    print("=" * 60)
-    
-    # Check if input folder exists
-    if not input_folder.exists():
-        print(f"\nError: Input folder does not exist: {input_folder}")
-        print("Please run extract_opening_statement.py first to generate the text files.")
-        return
-    
-    # Initialize analyzer
-    try:
-        analyzer = FactorSimilarityAnalyzer()
-    except Exception as e:
-        print(f"\nError loading FinBERT model: {e}")
-        print("\nPlease install required packages:")
-        print("  pip install transformers torch pandas numpy scikit-learn")
-        return
-    
-    # Process all documents
-    try:
-        df = analyzer.process_all_documents(input_folder, output_folder)
-        
-        # Display first few rows
-        print("\nFirst 10 rows of results:")
-        print(df.head(10).to_string(index=False))
-        
-    except Exception as e:
-        print(f"\nError during processing: {e}")
-        import traceback
-        traceback.print_exc()
+    print(f"[Paths] DOCS_DIR = {DOCS_DIR}")
+    print(f"[Paths] OUT_DIR  = {OUT_DIR}")
+
+    if not DOCS_DIR.exists():
+        raise FileNotFoundError(f"docs dir not found: {DOCS_DIR}")
+
+    analyzer = FactorSimilarityAnalyzer(model_name=MODEL_NAME, device=DEVICE)
+    _ = analyzer.process_folder(DOCS_DIR, SCORES_CSV)
+
+    # regression placeholder
+    if RUN_REG:
+        run_hac_regressions(SCORES_CSV, MARKET_CSV, Y_COLS)
+    else:
+        print("\n[Info] Regression step skipped.\n")
 
 
 if __name__ == "__main__":
