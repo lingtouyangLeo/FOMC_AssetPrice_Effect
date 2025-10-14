@@ -78,24 +78,16 @@ class USEFactorSimilarityAnalyzer:
         # Using extreme, contrasting statements for better separation
         self.factors = {
             "hawk": [
-                "Inflation remains dangerously high and requires urgent action.",
-                "We must aggressively raise interest rates to control prices.",
-                "The economy is overheating and needs significant cooling.",
-                "Price stability is at serious risk and demands restrictive policy.",
-                "We will maintain high interest rates for an extended period.",
-                "Inflation expectations are becoming unanchored and must be crushed.",
-                "The labor market is too tight and wage growth is excessive.",
-                "We prioritize fighting inflation over supporting growth.",
+                "Recent indicators suggest that real GDP growth has picked up this quarter, with consumption spending remaining strong.",
+                "The labor force participation rate has moved up over the past year, particularly for individuals aged 25 to 54 years.",
+                "Indicators of economic activity and employment have strengthened since the beginning of the year.",
+                "The economy is showing continued strength, suggesting further policy firming may be appropriate.",
             ],
             "dove": [
-                "Inflation is declining rapidly toward our target.",
-                "We need to prevent a recession and support economic growth.",
-                "Interest rates may need to be cut to sustain the recovery.",
-                "The labor market is weakening and needs support.",
-                "We should ease monetary policy to avoid overtightening.",
-                "Economic growth is slowing dangerously and risks deflation.",
-                "The economy is dangerously weak with rising unemployment.",
-                "We prioritize maximum employment over inflation worries.",
+                "This action has no implications for our intended stance of monetary policy.",
+                "We will continue to make our decisions meeting by meeting, based on incoming data.",
+                "As we have said, we will provide advance notice before making any changes to our purchases.",
+                "We intend to wrap up the review by late summer.",
             ],
         }
 

@@ -1,21 +1,13 @@
 # -*- coding: utf-8 -*-
 """
-Semantic Similarity Analysis for FOMC Communications
------------------------------------------------------
-This script uses semantic similarity to analyze the hawkish/dovish stance of FOMC statements.
-
-Methodology:
-1) Extract sentences from FOMC opening statements
-2) Encode sentences using FinBERT (financial domain pre-trained BERT model)
-3) Create semantic embeddings via mean pooling + L2 normalization
-4) Define hawkish and dovish anchor sentences as reference points
-5) Compute cosine similarity between document embeddings and anchor centroids
-6) Calculate hawk_score = similarity_to_hawk - similarity_to_dove
-
-The semantic similarity approach captures nuanced policy stances by:
-- Understanding context and meaning beyond keyword matching
-- Measuring semantic distance in high-dimensional embedding space
-- Using financial domain knowledge from FinBERT pre-training
+Factor Similarity Analysis for FOMC Communications (No Regression Version)
+---------------------------------------------------------------------------
+This script:
+1) Reads FOMC transcripts (.txt) with YYYYMMDD in filenames
+2) Embeds sentences with FinBERT (mean pooling + L2 normalization)
+3) Computes similarities to hawkish/dovish anchors
+4) Produces HawkScore = sim(hawk) - sim(dove) (>0 = more hawkish)
+5) Regression section is left empty for future use.
 
 Usage:
     python src/factor_similarity_analysis.py
@@ -50,25 +42,11 @@ warnings.filterwarnings("ignore")
 
 
 class FactorSimilarityAnalyzer:
-    """
-    Semantic Similarity Analyzer for FOMC Policy Stance
-    
-    Uses FinBERT embeddings and cosine similarity to measure the semantic distance
-    between FOMC statements and predefined hawkish/dovish anchor sentences.
-    
-    The semantic approach captures policy nuances beyond keyword counting by:
-    - Encoding contextual meaning in high-dimensional space
-    - Measuring angular distance (cosine similarity) between embeddings
-    - Leveraging financial domain knowledge from FinBERT
-    """
+    """Compute hawkish/dovish factor similarity scores using FinBERT embeddings."""
 
     def __init__(self, model_name: str = "ProsusAI/finbert", device: str | None = None):
         """
-        Initialize the semantic similarity analyzer.
-        
-        Args:
-            model_name: HuggingFace model name (default: ProsusAI/finbert)
-            device: Computing device (cuda/cpu), auto-detected if None
+        Load FinBERT and prepare anchors.
         """
         print(f"[Init] Loading model: {model_name}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
@@ -79,53 +57,34 @@ class FactorSimilarityAnalyzer:
         self.model.to(self.device).eval()
         print(f"[Init] Using device: {self.device}")
 
-        # Semantic anchors: extreme hawkish and dovish reference points
-        # These serve as poles in the semantic space for measuring policy stance
+        # Hawkish and dovish anchors (extendable) - using extreme, contrasting statements
         self.factors = {
             "hawk": [
-                "Inflation is dangerously high and spiraling out of control.",
-                "We must aggressively raise rates by 75 basis points or more.",
-                "Restrictive monetary policy is essential to crush inflation.",
-                "Interest rates need to stay high for an extended period.",
-                "The economy is overheating with excessive demand.",
-                "Inflation poses severe risks to economic stability.",
-                "We prioritize price stability over growth concerns.",
-                "Rate hikes must continue until inflation falls substantially.",
+                "Recent indicators suggest that real GDP growth has picked up this quarter, with consumption spending remaining strong.",
+                "The labor force participation rate has moved up over the past year, particularly for individuals aged 25 to 54 years.",
+                "Indicators of economic activity and employment have strengthened since the beginning of the year.",
+                "The economy is showing continued strength, suggesting further policy firming may be appropriate.",
             ],
             "dove": [
-                "Inflation is declining rapidly toward our 2% target.",
-                "We must cut interest rates immediately to prevent recession.",
-                "Accommodative monetary policy is needed to support jobs.",
-                "Interest rates should be lowered to stimulate growth.",
-                "The economy is dangerously weak with rising unemployment.",
-                "Unemployment and weak growth are our primary concerns.",
-                "We prioritize maximum employment over inflation worries.",
-                "Rate cuts are necessary to support struggling businesses.",
+                "This action has no implications for our intended stance of monetary policy.",
+                "We will continue to make our decisions meeting by meeting, based on incoming data.",
+                "As we have said, we will provide advance notice before making any changes to our purchases.",
+                "We intend to wrap up the review by late summer.",
             ],
         }
 
-        # Cache anchor embeddings and centroids in semantic space
+        # Cache anchor embeddings and centroids
         self.factor_vecs = {k: self.embed_texts(v) for k, v in self.factors.items()}
         self.factor_centroid = {
             k: vecs.mean(axis=0, keepdims=True) for k, vecs in self.factor_vecs.items()
-        }  # [1, H], L2-normalized centroids represent semantic "average" of each stance
+        }  # [1, H], L2-normalized
 
-    # ---------- Semantic Embedding Utilities ----------
+    # ---------- Embedding utilities ----------
 
     @staticmethod
     def _mean_pooling(model_output: torch.Tensor, attention_mask: torch.Tensor) -> torch.Tensor:
         """
         Mean-pool token embeddings using the attention mask.
-        
-        This creates sentence-level embeddings from token-level representations,
-        weighted by the attention mask to ignore padding tokens.
-        
-        Args:
-            model_output: BERT model output with last_hidden_state
-            attention_mask: Binary mask indicating real vs padding tokens
-            
-        Returns:
-            Mean-pooled sentence embeddings [B, H]
         """
         token_embeddings = model_output.last_hidden_state  # [B, T, H]
         input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
@@ -135,20 +94,7 @@ class FactorSimilarityAnalyzer:
 
     def embed_texts(self, texts: list[str], batch_size: int = 16) -> np.ndarray:
         """
-        Batch-embed texts into semantic vector space.
-        
-        Process:
-        1. Tokenize text into BERT input format
-        2. Pass through FinBERT to get contextualized token embeddings
-        3. Mean-pool tokens to create sentence-level embeddings
-        4. L2-normalize to unit length (enables cosine similarity via dot product)
-        
-        Args:
-            texts: List of text strings to embed
-            batch_size: Number of texts to process simultaneously
-            
-        Returns:
-            Numpy array of shape [N, H] with L2-normalized embeddings
+        Batch-embed texts -> mean-pooled, L2-normalized sentence embeddings.
         """
         all_vecs: list[torch.Tensor] = []
         for i in range(0, len(texts), batch_size):
@@ -165,23 +111,15 @@ class FactorSimilarityAnalyzer:
         return torch.cat(all_vecs, dim=0).numpy()
 
     def embed_sentence(self, sentence: str) -> np.ndarray:
-        """Convenience method to embed a single sentence into semantic space."""
+        """Convenience single-sentence embed."""
         return self.embed_texts([sentence])[0]
 
-    # ---------- Semantic Similarity Scoring ----------
+    # ---------- Scoring ----------
 
     @staticmethod
     def split_sentences(text: str) -> list[str]:
         """
-        Split text into sentences for semantic analysis.
-        
-        Filters sentences with >=5 tokens to reduce noise from fragments.
-        
-        Args:
-            text: Input document text
-            
-        Returns:
-            List of sentence strings
+        Split text into sentences. Keep sentences with >=5 tokens to reduce noise.
         """
         t = re.sub(r"\s+", " ", text).strip()
         if not t:
@@ -192,28 +130,7 @@ class FactorSimilarityAnalyzer:
 
     def score_document(self, text: str) -> dict:
         """
-        Compute semantic similarity scores for a document.
-        
-        Process:
-        1. Split document into sentences
-        2. Embed each sentence into semantic space using FinBERT
-        3. Compute cosine similarity to hawkish and dovish centroids
-        4. Average similarities across all sentences
-        5. Calculate hawk_score as the difference (positive = hawkish, negative = dovish)
-        
-        Cosine similarity measures the angular distance between embeddings:
-        - 1.0 = identical semantic meaning
-        - 0.0 = orthogonal (unrelated)
-        - -1.0 = opposite meaning
-        
-        Args:
-            text: Input document text
-            
-        Returns:
-            Dictionary with keys:
-            - sim_to_hawk: Average cosine similarity to hawkish anchors
-            - sim_to_dove: Average cosine similarity to dovish anchors
-            - hawk_score: Difference (hawk - dove), indicating overall stance
+        Compute sim_to_hawk, sim_to_dove, and hawk_score for a document.
         """
         sents = self.split_sentences(text)
         if not sents:
@@ -223,7 +140,7 @@ class FactorSimilarityAnalyzer:
         hawk_cent = self.factor_centroid["hawk"]               # [1, H]
         dove_cent = self.factor_centroid["dove"]               # [1, H]
 
-        # Cosine similarities via dot product (vectors already L2-normalized)
+        # Cosine similarities via dot product (vectors already normalized)
         sim_hawk = float((doc_vecs @ hawk_cent.T).mean())
         sim_dove = float((doc_vecs @ dove_cent.T).mean())
         return {"sim_to_hawk": sim_hawk, "sim_to_dove": sim_dove, "hawk_score": sim_hawk - sim_dove}

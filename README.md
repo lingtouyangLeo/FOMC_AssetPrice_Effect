@@ -1,19 +1,45 @@
 # FOMC_AssetPrice_Effect
 
-This project analyzes the effect of FOMC (Federal Open Market Committee) press conferences on asset prices.
+This project analyzes the effect of FOMC (Federal Open Market Committee) press conferences on asset prices using semantic similarity analysis.
+
+## Quick Start
+
+```bash
+# 1. Install dependencies
+pip install PyPDF2 tensorflow tensorflow-hub pandas numpy wordcloud matplotlib
+
+# 2. Extract opening statements from PDFs
+python src/utils/extract_opening_statement.py
+
+# 3. Run five-factor analysis
+python src/five_factor_analysis.py
+
+# 4. Visualize results
+python src/utils/visualize_five_factors.py
+```
 
 ## Project Structure
 
 ```
 FOMC_AssetPrice_Effect/
-├── src/                          # Source code
-│   ├── extract_opening_statement.py  # Extract opening statements from PDF transcripts
-│   └── factor_similarity_analysis.py # Compute factor similarity scores
-├── dataset/                      # Data files
-│   ├── transcripts/              # Original PDF transcripts
-│   └── opening_statements/       # Extracted opening statements (TXT files)
-├── output/                       # Analysis outputs
-│   └── factor_similarity_scores.csv  # Factor similarity scores for each date
+├── src/                                    # Source code
+│   ├── utils/                              # Utility scripts
+│   │   ├── extract_opening_statement.py    # Extract opening statements from PDFs
+│   │   ├── generate_wordclouds.py          # Generate word cloud visualizations
+│   │   └── visualize_five_factors.py       # Visualize five-factor analysis results
+│   ├── factor_similarity_analysis.py       # 2-factor analysis (FinBERT)
+│   ├── factor_similarity_analysis_use.py   # 2-factor analysis (USE)
+│   ├── five_factor_analysis.py             # 5-factor extended analysis
+│   └── compare_methods.py                  # Compare FinBERT vs USE results
+├── dataset/                                # Data files
+│   ├── transcripts/                        # Original PDF transcripts
+│   └── opening_statements/                 # Extracted opening statements (TXT files)
+├── output/                                 # Analysis outputs
+│   ├── factor_similarity_scores.csv        # 2-factor scores (FinBERT)
+│   ├── factor_similarity_scores_use.csv    # 2-factor scores (USE)
+│   ├── five_factor_scores.csv              # 5-factor scores
+│   ├── wordclouds/                         # Word cloud images
+│   └── *.png                               # Visualization plots
 └── README.md
 ```
 
@@ -69,7 +95,7 @@ This script processes FOMC press conference PDF files and extracts Chair Powell'
 **Run the script:**
 
 ```bash
-python src/extract_opening_statement.py
+python src/utils/extract_opening_statement.py
 ```
 
 The script will:
@@ -186,6 +212,68 @@ This script will:
 - Console: Statistical comparison and correlation analysis
 - File: `output/method_comparison.png` (scatter plot and time series)
 
+### 2d. Five-Factor Analysis [Extended]
+
+**Extended analysis** that expands from 2 factors (hawk/dove) to 5 granular factors capturing different dimensions of monetary policy.
+
+**Five Factors:**
+
+1. **Rate/Tightening (短端路径)** - Interest rate direction signals
+   - Example anchors: "The Committee will raise the federal funds rate", "We will maintain a restrictive monetary policy stance"
+   
+2. **Inflation Upward Pressure (通胀)** - Inflation concern level
+   - Example anchors: "Inflation is elevated and remains above target", "Upside risks to inflation have increased"
+   
+3. **Forward Guidance/Path Language (前瞻指引)** - Future policy path signals
+   - Example anchors: "We expect policy to remain restrictive for some time", "We do not expect it appropriate to cut until..."
+   
+4. **Balance Sheet/QT (期限溢价通道)** - Quantitative tightening/easing
+   - Example anchors: "The Committee will continue to reduce its holdings", "The balance sheet will decline"
+   
+5. **Growth/Labor Softening (增长/就业走弱)** - Economic growth and labor market weakness
+   - Example anchors: "Economic activity has slowed", "The labor market has cooled"
+
+**Why Five Factors?**
+- More granular analysis than binary hawk/dove
+- Captures different policy transmission channels
+- Better for asset price impact analysis (yield curve effects differ by factor)
+- Aligns with how markets interpret Fed communications
+
+**Run the script:**
+
+```bash
+python src/five_factor_analysis.py
+```
+
+The script will:
+- Read all text files from `dataset/opening_statements/`
+- Use Universal Sentence Encoder to encode sentences
+- Compute cosine similarity to each of the 5 factor anchors
+- Generate 5 independent scores per document
+- Save results to `output/five_factor_scores.csv`
+
+**Input:** TXT files in `dataset/opening_statements/`  
+**Output:** CSV file in `output/five_factor_scores.csv`
+
+**Output Format:**
+```csv
+Date,filename,path,rate_score,inf_score,guidance_score,qt_score,growth_soft_score
+2020-11-05,FOMCpresconf20201105.txt,...,0.0862,0.1223,0.1167,0.1289,0.1023
+```
+
+**Interpretation:**
+- **rate_score**: Higher = More rate hike signals, tighter policy
+- **inf_score**: Higher = More inflation concern
+- **guidance_score**: Higher = Longer restrictive policy expected
+- **qt_score**: Higher = More QT/balance sheet reduction
+- **growth_soft_score**: Higher = More economic/labor weakness concern
+
+**Factor Correlations:**
+The factors are designed to be somewhat independent but naturally show some correlation:
+- Rate & Inflation: 0.925 (high correlation - both indicate tightening)
+- Forward Guidance & Growth Softening: 0.500 (moderate - balancing act)
+- Balance Sheet/QT & Growth Softening: 0.712 (balanced policy consideration)
+
 ### 3. Generate Word Clouds
 
 This script generates word cloud visualizations for each FOMC opening statement and creates comparative word clouds by time period:
@@ -199,7 +287,7 @@ This script generates word cloud visualizations for each FOMC opening statement 
 **Run the script:**
 
 ```bash
-python src/generate_wordclouds.py
+python src/utils/generate_wordclouds.py
 ```
 
 The script will:
@@ -213,30 +301,48 @@ The script will:
 
 ## Analysis Pipeline
 
-You can choose between two semantic similarity methods:
+You can choose between different semantic similarity methods and levels of granularity:
 
-**Option A: Using FinBERT (finance-specific)**
+**Option A: Using FinBERT (finance-specific, 2-factor)**
 ```bash
 # Step 1: Extract opening statements from PDFs
-python src/extract_opening_statement.py
+python src/utils/extract_opening_statement.py
 
 # Step 2: Compute factor similarity scores with FinBERT
 python src/factor_similarity_analysis.py
 
 # Step 3: Generate word cloud visualizations
-python src/generate_wordclouds.py
+python src/utils/generate_wordclouds.py
 ```
 
-**Option B: Using Universal Sentence Encoder (general-purpose)**
+**Option B: Using Universal Sentence Encoder (general-purpose, 2-factor)**
 ```bash
 # Step 1: Extract opening statements from PDFs
-python src/extract_opening_statement.py
+python src/utils/extract_opening_statement.py
 
 # Step 2: Compute factor similarity scores with USE
 python src/factor_similarity_analysis_use.py
 
 # Step 3: Generate word cloud visualizations
-python src/generate_wordclouds.py
+python src/utils/generate_wordclouds.py
+```
+
+**Option C: Five-Factor Extended Analysis (5 dimensions)**
+```bash
+# Step 1: Extract opening statements from PDFs
+python src/utils/extract_opening_statement.py
+
+# Step 2: Compute five-factor scores
+python src/five_factor_analysis.py
+
+# Step 3: Generate word cloud visualizations
+python src/utils/generate_wordclouds.py
+
+# Step 4 (Optional): Visualize five-factor results
+python src/utils/visualize_five_factors.py
+
+# Step 5 (Optional): Compare 2-factor methods
+python src/compare_methods.py
 ```
 
 ## Compare both methods:
