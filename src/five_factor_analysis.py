@@ -269,7 +269,7 @@ class FiveFactorAnalyzer:
             output_csv: Path to save the resulting CSV
             
         Returns:
-            DataFrame with columns: Date, filename, path, rate_score, inf_score, 
+            DataFrame with columns: Date, filename, rate_score, inf_score, 
                                    guidance_score, qt_score, growth_soft_score
         """
         txt_files = sorted(docs_dir.glob("*.txt"))
@@ -288,7 +288,6 @@ class FiveFactorAnalyzer:
             row = {
                 "Date": date_str,
                 "filename": fpath.name,
-                "path": str(fpath),
                 "rate_score": scores["rate_score"],
                 "inf_score": scores["inf_score"],
                 "guidance_score": scores["guidance_score"],
@@ -337,6 +336,58 @@ class FiveFactorAnalyzer:
         corr_matrix = df[factor_cols].corr()
         print(corr_matrix.round(3))
         
+        # ---------------------------------------------------------------------
+        # Compute standardized-weighted overall Hawkishness Index
+        # ---------------------------------------------------------------------
+        print("\n" + "=" * 80)
+        print("COMPUTING STANDARDIZED HAWKISHNESS INDEX")
+        print("=" * 80)
+
+        # 1️⃣ Standardize each factor (z-score normalization)
+        for c in factor_cols:
+            df[c + "_z"] = (df[c] - df[c].mean()) / df[c].std()
+
+        # 2️⃣ Compute the composite hawkishness index:
+        #     Average of four hawkish dimensions minus the dovish (growth softening) dimension
+        df["hawk_index"] = (
+            df["rate_score_z"] + df["inf_score_z"] +
+            df["guidance_score_z"] + df["qt_score_z"]
+        ) / 4 - df["growth_soft_score_z"]
+
+        # 3️⃣ Normalize the overall index again (z-score)
+        df["hawk_index_z"] = (df["hawk_index"] - df["hawk_index"].mean()) / df["hawk_index"].std()
+
+        # 4️⃣ Classify each statement as Hawkish (>0) or Dovish (<0)
+        df["stance"] = np.where(df["hawk_index_z"] > 0, "Hawkish", "Dovish")
+
+        # Save updated DataFrame with the new columns
+        updated_csv = output_csv.parent / "five_factor_scores_with_hawkindex.csv"
+        df.to_csv(updated_csv, index=False, float_format="%.6f")
+        print(f"[OK] Updated results saved to: {updated_csv}")
+        
+        # Print summary statistics for the hawk index
+        print(f"\nHawkishness Index Statistics:")
+        print(f"  Range: [{df['hawk_index_z'].min():.4f}, {df['hawk_index_z'].max():.4f}]")
+        print(f"  Mean:  {df['hawk_index_z'].mean():.4f}")
+        print(f"  Std:   {df['hawk_index_z'].std():.4f}")
+        
+        n_hawkish = (df["stance"] == "Hawkish").sum()
+        n_dovish = (df["stance"] == "Dovish").sum()
+        print(f"\nStance Distribution:")
+        print(f"  Hawkish: {n_hawkish} ({n_hawkish/len(df)*100:.1f}%)")
+        print(f"  Dovish:  {n_dovish} ({n_dovish/len(df)*100:.1f}%)")
+        
+        # Top 5 most hawkish and dovish
+        print(f"\nTop 5 Most Hawkish:")
+        top5_hawk = df.nlargest(5, 'hawk_index_z')[['Date', 'hawk_index_z', 'filename']]
+        for _, row in top5_hawk.iterrows():
+            print(f"  {row['Date']}: {row['hawk_index_z']:+.3f} ({row['filename']})")
+        
+        print(f"\nTop 5 Most Dovish:")
+        top5_dove = df.nsmallest(5, 'hawk_index_z')[['Date', 'hawk_index_z', 'filename']]
+        for _, row in top5_dove.iterrows():
+            print(f"  {row['Date']}: {row['hawk_index_z']:+.3f} ({row['filename']})")
+        
         return df
 
 
@@ -362,6 +413,82 @@ def main():
     # Process all documents
     df = analyzer.process_folder(DOCS_DIR, OUTPUT_CSV)
     
+    # ---------------------------------------------------------------------
+    # Visualization: Hawkishness Index over Time
+    # ---------------------------------------------------------------------
+    import matplotlib.pyplot as plt
+    
+    print("\n" + "=" * 80)
+    print("PLOTTING HAWKISHNESS INDEX OVER TIME")
+    print("=" * 80)
+    
+    # Convert Date to datetime for plotting
+    df['Date'] = pd.to_datetime(df['Date'])
+    df = df.sort_values('Date')
+    
+    plt.figure(figsize=(14, 7))
+    
+    # Plot main index line
+    plt.plot(df["Date"], df["hawk_index_z"], 'o-', color="tab:red", 
+             linewidth=2.5, markersize=6, label="Hawkishness Index (Z-score)")
+    
+    # Add reference lines
+    plt.axhline(0, color="gray", linewidth=1.5, linestyle="--", label="Neutral (0)")
+    plt.axhline(df["hawk_index_z"].mean(), color="black", linewidth=1.2, 
+                linestyle=":", label="Mean", alpha=0.7)
+    
+    # Highlight hawkish (red) and dovish (blue) areas
+    plt.fill_between(df["Date"], df["hawk_index_z"], 0, 
+                     where=(df["hawk_index_z"].values > 0), 
+                     color="red", alpha=0.15, label="Hawkish Region")
+    plt.fill_between(df["Date"], df["hawk_index_z"], 0, 
+                     where=(df["hawk_index_z"].values < 0), 
+                     color="blue", alpha=0.15, label="Dovish Region")
+    
+    # Highlight extreme values
+    hawk_threshold = df["hawk_index_z"].quantile(0.90)
+    dove_threshold = df["hawk_index_z"].quantile(0.10)
+    
+    extreme_hawks = df[df["hawk_index_z"] >= hawk_threshold]
+    extreme_doves = df[df["hawk_index_z"] <= dove_threshold]
+    
+    plt.scatter(extreme_hawks["Date"], extreme_hawks["hawk_index_z"], 
+                color='darkred', s=150, marker='*', 
+                edgecolors='red', linewidth=1.5, zorder=5,
+                label=f'Top 10% Hawkish (n={len(extreme_hawks)})')
+    plt.scatter(extreme_doves["Date"], extreme_doves["hawk_index_z"], 
+                color='darkblue', s=150, marker='*', 
+                edgecolors='blue', linewidth=1.5, zorder=5,
+                label=f'Top 10% Dovish (n={len(extreme_doves)})')
+    
+    # Title and labels
+    plt.title("Overall Hawkishness Index (Standardized Weighted Average)\nFive-Factor FOMC Analysis", 
+              fontsize=15, fontweight='bold', pad=20)
+    plt.xlabel("Date", fontsize=13, fontweight='bold')
+    plt.ylabel("Hawkishness Index (Z-Score)", fontsize=13, fontweight='bold')
+    plt.legend(loc='best', fontsize=10, framealpha=0.9)
+    plt.grid(True, alpha=0.3, linestyle='--')
+    plt.xticks(rotation=45, ha='right')
+    
+    # Add statistics text box
+    stats_text = f"""Index Statistics:
+    Mean: {df['hawk_index_z'].mean():.3f}
+    Std: {df['hawk_index_z'].std():.3f}
+    Max: {df['hawk_index_z'].max():.3f} ({df.loc[df['hawk_index_z'].idxmax(), 'Date'].strftime('%Y-%m-%d')})
+    Min: {df['hawk_index_z'].min():.3f} ({df.loc[df['hawk_index_z'].idxmin(), 'Date'].strftime('%Y-%m-%d')})"""
+    
+    plt.text(0.02, 0.98, stats_text, transform=plt.gca().transAxes,
+             fontsize=9, verticalalignment='top',
+             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.6))
+    
+    plt.tight_layout()
+    
+    # Save the figure
+    fig_path = OUTPUT_CSV.parent / "hawkishness_index_trend.png"
+    plt.savefig(fig_path, dpi=300, bbox_inches='tight')
+    print(f"[OK] Figure saved to: {fig_path}")
+    plt.close()
+    
     print("\n" + "=" * 80)
     print("✓ Five-factor analysis complete!")
     print("=" * 80)
@@ -371,6 +498,10 @@ def main():
     print("  guidance_score:     Higher = Longer restrictive policy expected")
     print("  qt_score:           Higher = More QT/balance sheet reduction")
     print("  growth_soft_score:  Higher = More economic/labor weakness concern")
+    print("\nHawkishness Index:")
+    print("  > 0  → Hawkish (tightening bias)")
+    print("  < 0  → Dovish (easing bias)")
+    print("  The red/blue shaded areas show shifts in policy tone over time.")
 
 
 if __name__ == "__main__":

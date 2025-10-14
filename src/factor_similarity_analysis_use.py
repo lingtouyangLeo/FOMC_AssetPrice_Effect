@@ -27,7 +27,7 @@ Input:
 
 Output:
     - CSV file: output/factor_similarity_scores_use.csv
-    - Columns: Date, filename, path, sim_to_hawk, sim_to_dove, hawk_score
+    - Columns: Date, filename, sim_to_hawk, sim_to_dove, hawk_score
 
 Interpretation:
     - hawk_score > 0: More hawkish (semantically closer to hawkish anchors)
@@ -237,7 +237,7 @@ class USEFactorSimilarityAnalyzer:
             output_csv: Path to save the resulting CSV
             
         Returns:
-            DataFrame with columns: Date, filename, path, sim_to_hawk, sim_to_dove, hawk_score
+            DataFrame with columns: Date, filename, sim_to_hawk, sim_to_dove, hawk_score
         """
         txt_files = sorted(docs_dir.glob("*.txt"))
         if not txt_files:
@@ -255,7 +255,6 @@ class USEFactorSimilarityAnalyzer:
             row = {
                 "Date": date_str,
                 "filename": fpath.name,
-                "path": str(fpath),
                 "sim_to_hawk": scores["sim_to_hawk"],
                 "sim_to_dove": scores["sim_to_dove"],
                 "hawk_score": scores["hawk_score"],

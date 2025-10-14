@@ -1,53 +1,46 @@
-# FOMC Asset Price Effect Analysis 🏦
+# FOMC_AssetPrice_Effect
 
-**Semantic analysis of Federal Reserve communications using NLP to measure monetary policy stance.**
-
-This project applies FinBERT and Universal Sentence Encoder to analyze FOMC press conference transcripts, extracting policy signals across 5 dimensions for asset price prediction.
+This project analyzes the effect of FOMC (Federal Open Market Committee) press conferences on asset prices using semantic similarity analysis.
 
 ## Quick Start
 
 ```bash
 # 1. Install dependencies
-pip install tensorflow tensorflow-hub pandas numpy matplotlib scikit-learn
+pip install PyPDF2 tensorflow tensorflow-hub pandas numpy wordcloud matplotlib
 
 # 2. Extract opening statements from PDFs
 python src/utils/extract_opening_statement.py
 
-# 3. Run five-factor analysis (⭐ RECOMMENDED)
+# 3. Run five-factor analysis
 python src/five_factor_analysis.py
 
 # 4. Visualize results
 python src/utils/visualize_five_factors.py
 ```
 
-**Main Output**: `output/five_factor_scores_with_hawkindex.csv` + visualization plots
-
 ## Project Structure
 
 ```
 FOMC_AssetPrice_Effect/
 ├── src/                                    # Source code
-│   ├── five_factor_analysis.py             # ⭐ 5-factor + Hawkishness Index
+│   ├── utils/                              # Utility scripts
+│   │   ├── extract_opening_statement.py    # Extract opening statements from PDFs
+│   │   ├── generate_wordclouds.py          # Generate word cloud visualizations
+│   │   ├── visualize_five_factors.py       # Visualize five-factor analysis results
+│   │   ├── compare_methods.py              # Compare FinBERT vs USE results
+│   │   └── find_factors.py                 # Find hawkish/dovish sentences using FinBERT
 │   ├── factor_similarity_analysis.py       # 2-factor analysis (FinBERT)
 │   ├── factor_similarity_analysis_use.py   # 2-factor analysis (USE)
-│   └── utils/                              # Utility scripts
-│       ├── extract_opening_statement.py    # Extract opening statements from PDFs
-│       ├── visualize_five_factors.py       # Visualize five-factor analysis results
-│       ├── generate_wordclouds.py          # Generate word cloud visualizations
-│       ├── compare_methods.py              # Compare FinBERT vs USE results
-│       └── find_factors.py                 # Find hawkish/dovish sentences using FinBERT
+│   └── five_factor_analysis.py             # 5-factor extended analysis
 ├── dataset/                                # Data files
 │   ├── transcripts/                        # Original PDF transcripts
-│   └── opening_statements/                 # Extracted opening statements (TXT files, 40 docs)
+│   └── opening_statements/                 # Extracted opening statements (TXT files)
 ├── output/                                 # Analysis outputs
-│   ├── five_factor_scores_with_hawkindex.csv  # ⭐ Main output (14 columns)
-│   ├── hawkishness_index_trend.png         # Overall index time series
-│   ├── five_factor_timeseries.png          # 5 factors over time
-│   ├── five_factor_correlation.png         # Factor correlation heatmap
-│   ├── five_factor_radar.png               # Recent vs historical comparison
 │   ├── factor_similarity_scores.csv        # 2-factor scores (FinBERT)
 │   ├── factor_similarity_scores_use.csv    # 2-factor scores (USE)
-│   └── wordclouds/                         # Word cloud images
+│   ├── five_factor_scores.csv              # 5-factor scores
+│   ├── wordclouds/                         # Word cloud images
+│   └── *.png                               # Visualization plots
 └── README.md
 ```
 
@@ -206,7 +199,7 @@ The script will:
 Compare the results from FinBERT and Universal Sentence Encoder:
 
 ```bash
-python src/compare_methods.py
+python src/utils/compare_methods.py
 ```
 
 This script will:
@@ -226,19 +219,19 @@ This script will:
 
 **Five Factors:**
 
-1. **Rate/Tightening** - Interest rate direction signals
+1. **Rate/Tightening (短端路径)** - Interest rate direction signals
    - Example anchors: "The Committee will raise the federal funds rate", "We will maintain a restrictive monetary policy stance"
    
-2. **Inflation Upward Pressure** - Inflation concern level
+2. **Inflation Upward Pressure (通胀)** - Inflation concern level
    - Example anchors: "Inflation is elevated and remains above target", "Upside risks to inflation have increased"
    
-3. **Forward Guidance/Path Language** - Future policy path signals
+3. **Forward Guidance/Path Language (前瞻指引)** - Future policy path signals
    - Example anchors: "We expect policy to remain restrictive for some time", "We do not expect it appropriate to cut until..."
    
-4. **Balance Sheet/QT** - Quantitative tightening/easing
+4. **Balance Sheet/QT (期限溢价通道)** - Quantitative tightening/easing
    - Example anchors: "The Committee will continue to reduce its holdings", "The balance sheet will decline"
    
-5. **Growth/Labor Softening** - Economic growth and labor market weakness
+5. **Growth/Labor Softening (增长/就业走弱)** - Economic growth and labor market weakness
    - Example anchors: "Economic activity has slowed", "The labor market has cooled"
 
 **Why Five Factors?**
@@ -350,10 +343,10 @@ python src/utils/generate_wordclouds.py
 python src/utils/visualize_five_factors.py
 
 # Step 5 (Optional): Compare 2-factor methods
-python src/compare_methods.py
+python src/utils/compare_methods.py
 ```
 
 ## Compare both methods:
 ```bash
-python src/compare_methods.py
+python src/utils/compare_methods.py
 ```

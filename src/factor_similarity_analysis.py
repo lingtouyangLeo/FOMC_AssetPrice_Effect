@@ -17,7 +17,7 @@ Input:
 
 Output:
     - CSV file: output/factor_similarity_scores.csv
-    - Columns: Date, filename, path, sim_to_hawk, sim_to_dove, hawk_score
+    - Columns: Date, filename, sim_to_hawk, sim_to_dove, hawk_score
 
 Interpretation:
     - hawk_score > 0: More hawkish (tighter policy stance)
@@ -185,7 +185,7 @@ class FactorSimilarityAnalyzer:
                 continue
 
             sc = self.score_document(txt)
-            rows.append({"Date": date_iso, "filename": f.name, "path": str(f), **sc})
+            rows.append({"Date": date_iso, "filename": f.name, **sc})
 
         df = pd.DataFrame(rows).sort_values("Date")
         if not df.empty:

@@ -6,7 +6,7 @@ This script compares the hawk_score results from both methods
 to understand their similarities and differences.
 
 Usage:
-    python src/compare_methods.py
+    python src/utils/compare_methods.py
 """
 
 import pandas as pd
