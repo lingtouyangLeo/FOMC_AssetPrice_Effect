@@ -26,28 +26,40 @@ python src/utils/visualize_five_factors.py
 
 ```
 FOMC_AssetPrice_Effect/
-├── src/                                    # Source code
-│   ├── five_factor_analysis.py             # ⭐ 5-factor + Hawkishness Index
-│   ├── factor_similarity_analysis.py       # 2-factor analysis (FinBERT)
-│   ├── factor_similarity_analysis_use.py   # 2-factor analysis (USE)
-│   └── utils/                              # Utility scripts
-│       ├── extract_opening_statement.py    # Extract opening statements from PDFs
-│       ├── visualize_five_factors.py       # Visualize five-factor analysis results
-│       ├── generate_wordclouds.py          # Generate word cloud visualizations
-│       ├── compare_methods.py              # Compare FinBERT vs USE results
-│       └── find_factors.py                 # Find hawkish/dovish sentences using FinBERT
-├── dataset/                                # Data files
-│   ├── transcripts/                        # Original PDF transcripts
-│   └── opening_statements/                 # Extracted opening statements (TXT files, 40 docs)
-├── output/                                 # Analysis outputs
-│   ├── five_factor_scores_with_hawkindex.csv  # ⭐ Main output (14 columns)
-│   ├── hawkishness_index_trend.png         # Overall index time series
-│   ├── five_factor_timeseries.png          # 5 factors over time
-│   ├── five_factor_correlation.png         # Factor correlation heatmap
-│   ├── five_factor_radar.png               # Recent vs historical comparison
-│   ├── factor_similarity_scores.csv        # 2-factor scores (FinBERT)
-│   ├── factor_similarity_scores_use.csv    # 2-factor scores (USE)
-│   └── wordclouds/                         # Word cloud images
+├── src/                                        # Source code
+│   ├── five_factor_analysis.py                 # ⭐ 5-factor + Hawkishness Index
+│   ├── factor_similarity_analysis.py           # 2-factor analysis (FinBERT)
+│   ├── factor_similarity_analysis_use.py       # 2-factor analysis (USE)
+│   ├── MarketData_events.ipynb                 # 📊 Market data & event study analysis
+│   └── utils/                                  # Utility scripts
+│       ├── extract_opening_statement.py        # Extract opening statements from PDFs
+│       ├── visualize_five_factors.py           # Visualize five-factor analysis results
+│       ├── generate_wordclouds.py              # Generate word cloud visualizations
+│       ├── compare_methods.py                  # Compare FinBERT vs USE results
+│       └── find_factors.py                     # Find hawkish/dovish sentences using FinBERT
+├── dataset/                                    # Data files
+│   ├── transcripts/                            # Original PDF transcripts
+│   ├── opening_statements/                     # Extracted opening statements (TXT files, 40 docs)
+│   ├── events.csv                              # FOMC event dates
+│   ├── event_windows_0_1.csv                   # Event window data
+│   ├── wrds_fomc_markets_daily.csv             # Market data from WRDS
+│   └── five_factor_regression_summary.csv      # Regression results
+├── output/                                     # Analysis outputs
+│   ├── five_factor_scores_with_hawkindex.csv   # ⭐ Main output (14 columns)
+│   ├── hawkishness_index_trend.png             # Overall index time series
+│   ├── five_factor_timeseries.png              # 5 factors over time
+│   ├── five_factor_correlation.png             # Factor correlation heatmap
+│   ├── five_factor_radar.png                   # Recent vs historical comparison
+│   ├── method_comparison.png                   # FinBERT vs USE comparison
+│   ├── factor_similarity_scores.csv            # 2-factor scores (FinBERT)
+│   ├── factor_similarity_scores_use.csv        # 2-factor scores (USE)
+│   └── wordclouds/                             # Word cloud images
+├── FOMC_Communications_Report.pdf              # 📄 Project report
+├── .gitignore                                  # Git ignore rules
+├── LICENSE                                     # MIT License
+└── README.md
+```
+├── FOMC_Communications_Report.pdf              # Project Report
 └── README.md
 ```
 
