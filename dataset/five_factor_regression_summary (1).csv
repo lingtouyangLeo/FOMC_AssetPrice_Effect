@@ -1,0 +1,29 @@
+Y,Var,Coef,SE,t,p,R2
+10Y–2Y Spread,const,1.535,0.927,1.66,0.098,0.132
+10Y–2Y Spread,rate_score_z,-523034.014,592401.147,-0.88,0.377,0.132
+10Y–2Y Spread,inf_score_z,-523027.372,592401.966,-0.88,0.377,0.132
+10Y–2Y Spread,guidance_score_z,-523034.223,592400.843,-0.88,0.377,0.132
+10Y–2Y Spread,qt_score_z,-523030.195,592401.824,-0.88,0.377,0.132
+10Y–2Y Spread,growth_soft_score_z,2092124.742,2369605.95,0.88,0.377,0.132
+10Y–2Y Spread,hawk_index_z,1714439.962,1941826.024,0.88,0.377,0.132
+1Y Yield,const,-1.907,0.669,-2.85,0.004,0.182
+1Y Yield,rate_score_z,-321048.944,493987.351,-0.65,0.516,0.182
+1Y Yield,inf_score_z,-321053.047,493988.666,-0.65,0.516,0.182
+1Y Yield,guidance_score_z,-321045.366,493986.462,-0.65,0.516,0.182
+1Y Yield,qt_score_z,-321051.537,493988.518,-0.65,0.516,0.182
+1Y Yield,growth_soft_score_z,1284199.019,1975951.474,0.65,0.516,0.182
+1Y Yield,hawk_index_z,1052363.46,1619236.825,0.65,0.516,0.182
+USD Index,const,-0.022,0.08,-0.28,0.782,0.234
+USD Index,rate_score_z,-32537.52,38265.003,-0.85,0.395,0.234
+USD Index,inf_score_z,-32538.633,38264.994,-0.85,0.395,0.234
+USD Index,guidance_score_z,-32537.515,38264.98,-0.85,0.395,0.234
+USD Index,qt_score_z,-32538.129,38265.007,-0.85,0.395,0.234
+USD Index,growth_soft_score_z,130151.931,153059.985,0.85,0.395,0.234
+USD Index,hawk_index_z,106655.645,125428.396,0.85,0.395,0.234
+Growth–Value,const,0.001,0.003,0.28,0.782,0.109
+Growth–Value,rate_score_z,2450.694,1854.82,1.32,0.186,0.109
+Growth–Value,inf_score_z,2450.684,1854.815,1.32,0.186,0.109
+Growth–Value,guidance_score_z,2450.676,1854.815,1.32,0.186,0.109
+Growth–Value,qt_score_z,2450.689,1854.819,1.32,0.186,0.109
+Growth–Value,growth_soft_score_z,-9802.742,7419.27,-1.32,0.186,0.109
+Growth–Value,hawk_index_z,-8033.076,6079.886,-1.32,0.186,0.109
