@@ -59,9 +59,7 @@ FOMC_AssetPrice_Effect/
 ├── LICENSE                                     # MIT License
 └── README.md
 ```
-├── FOMC_Communications_Report.pdf              # Project Report
-└── README.md
-```
+
 
 ## Setup
 
